@@ -2,6 +2,7 @@ source("~/scripts/R/dna.R")
 
 library("TxDb.Hsapiens.UCSC.hg38.knownGene")
 library('GenomicRanges')
+bedCountBin<-'~/installs/bedCount/bedCount'
 
 exon<-exonsBy(TxDb.Hsapiens.UCSC.hg38.knownGene,use.names=TRUE)
 intron<-intronsByTranscript(TxDb.Hsapiens.UCSC.hg38.knownGene,use.names=TRUE)
@@ -18,48 +19,40 @@ transcriptsByOverlapsByRegion<-function (x, ranges, maxgap = 0L, minoverlap = 1L
 overlappingIntronGenes<-cacheOperation('work/overlappingIntronGenes.Rdat',transcriptsByOverlapsByRegion,TxDb.Hsapiens.UCSC.hg38.knownGene,onlyIntron,EXCLUDE='TxDb.Hsapiens.UCSC.hg38.knownGene')
 overlappingExonGenes<-cacheOperation('work/overlappingExonGenes.Rdat',transcriptsByOverlapsByRegion,TxDb.Hsapiens.UCSC.hg38.knownGene,onlyExon,EXCLUDE='TxDb.Hsapiens.UCSC.hg38.knownGene')
 
-intronRegions<-do.call(rbind,cacheOperation('work/intronRegions.Rdat',mclapply,overlappingIntronGenes,function(x){if(runif(1)<.001)cat('.');Reduce(union,x)},mc.cores=10,EXCLUDE='overlappingIntronGenes'))
-exonRegions<-do.call(rbind,cacheOperation('work/exonRegions.Rdat',mclapply,overlappingExonGenes,function(x){if(runif(1)<.001)cat('.');Reduce(union,x)},mc.cores=10,EXCLUDE='overlappingIntronGenes'))
+reduceFunc<-function(x){if(runif(1)<.001)cat('.');out<-Reduce(union,x);elementMetadata(out)<-NULL;return(out)}
+intronRegions<-cacheOperation('work/intronRegions.Rdat',mclapply,overlappingIntronGenes,reduceFunc,mc.cores=4,EXCLUDE='overlappingIntronGenes')
+if(any(sapply(intronRegions,length)>1))stop(simpleError('Multiple overlap intron region found'))
+intronRegions<-do.call(c,unname(intronRegions))
+exonRegions<-cacheOperation('work/exonRegions.Rdat',mclapply,overlappingExonGenes,reduceFunc,mc.cores=4,EXCLUDE='overlappingExonGenes')
+if(any(sapply(exonRegions,length)>1))stop(simpleError('Multiple overlap exon region found'))
+exonRegions<-do.call(c,unname(exonRegions))
 
-if(FALSE){
-	exonOut<-data.frame('chr'=exonRanges$chr,'start'=exonRanges$start-1,'end'=exonRanges$end,'name'=sprintf('exon%09d',1:nrow(exonRanges)),'dummy'=0,'strand'='+',stringsAsFactors=FALSE)
-	intronOut<-data.frame('chr'=intronRanges$chr,'start'=intronRanges$start-1,'end'=intronRanges$end,'name'=intronRanges$id,'dummy'=0,'strand'='+',stringsAsFactors=FALSE)
-	intronGenesOut<-data.frame('chr'=genesForIntrons$chr,'start'=genesForIntrons$start-1,'end'=genesForIntrons$end,'name'=genesForIntrons$id,'dummy'=0,'strand'='+',stringsAsFactors=FALSE)
-	exonGenesOut<-data.frame('chr'=genesForExons$chr,'start'=genesForExons$start-1,'end'=genesForExons$end,'name'=genesForExons$id,'dummy'=0,'strand'='+',stringsAsFactors=FALSE)
+exonOut<-data.frame('chr'=seqnames(onlyExon),'start'=start(onlyExon)-1,'end'=end(onlyExon),'name'=sprintf('exon%09d',1:length(onlyExon)),'strand'=strand(onlyExon),stringsAsFactors=FALSE)
+intronOut<-data.frame('chr'=seqnames(onlyIntron),'start'=start(onlyIntron)-1,'end'=end(onlyIntron),'name'=sprintf('intron%09d',1:length(onlyIntron)),'strand'=strand(onlyIntron),stringsAsFactors=FALSE)
 
-	options(scipen=20)
-	write.table(exonOut,'work/exonOnly_regions.bed',col.names=FALSE,row.names=FALSE,quote=FALSE,sep='\t')
-	write.table(intronOut,'work/intronOnly_regions.bed',col.names=FALSE,row.names=FALSE,quote=FALSE,sep='\t')
-	write.table(intronGenesOut,'work/intronGenes_regions.bed',col.names=FALSE,row.names=FALSE,quote=FALSE,sep='\t')
-	write.table(exonGenesOut,'work/exonGenes_regions.bed',col.names=FALSE,row.names=FALSE,quote=FALSE,sep='\t')
+exonGenesOut<-data.frame('chr'=seqnames(exonRegions),'start'=start(exonRegions)-1,'end'=end(exonRegions),'name'=sprintf('exon%09d',1:length(exonRegions)),'strand'=strand(exonRegions),stringsAsFactors=FALSE)
+intronGenesOut<-data.frame('chr'=seqnames(intronRegions),'start'=start(intronRegions)-1,'end'=end(intronRegions),'name'=sprintf('intron%09d',1:length(intronRegions)),'strand'=strand(intronRegions),stringsAsFactors=FALSE)
 
-	for(ii in list.files('work','regions.bed')){
-		#cmd<-sprintf("%s -t 12 -b work/%s %s >work/%s","/media/RAID/shescott/splicing/oldBedCount",ii,paste(bamFiles,collapse=' '),sub('bed$','count2',ii))
-		outFile<-sprintf('work/%s',sub('bed$','count',ii))
-		bamFileOrder<-c()
-		if(!file.exists(outFile)){
-			thisOuts<-c()
-			for(study in unique(runInfo$study)){
-				studyOutFile<-sub('\\.bed$',sprintf('_%s.count',study),ii)
-				#Katze is single end so pass -s option
-				thisBams<-runInfo[runInfo$study==study,'bamFile']
-				cmd<-sprintf("%s -t 12 -b work/%s %s %s >%s",bedCountBin,ii,paste(thisBams,collapse=' '),ifelse(study=='Katze','-s',''),studyOutFile)
-				message(cmd)
-				system(cmd)
-				thisOuts<-c(thisOuts,studyOutFile)
-				bamFileOrder<-c(bamFileOrder,thisBams)
-			}
-			thisCounts<-lapply(thisOuts,read.table,stringsAsFactors=FALSE)
-			if(any(sapply(thisCounts,nrow)!=nrow(thisCounts[[1]])))stop(simpleError('Missing counts in study specific files'))
-			if(any(apply(do.call(cbind,lapply(thisCounts,function(x)x[,1])),1,function(x)any(x!=x[1]))))stop(simpleError('Mismatched regions in study specific files'))
-			if(any(bamFileOrder!=bamFiles))stop(simpleError('Order of bam files changed. Program this more robustly'))
-			outCounts<-cbind(thisCounts[[1]][,1:2],do.call(cbind,lapply(thisCounts,function(x)x[,-1:-2])))
-			write.table(outCounts,outFile)
-		}else{
-			message(outFile,' already exists')
-		}
+options(scipen=20)
+write.table(exonOut,'work/exonOnly_regions.bed',col.names=FALSE,row.names=FALSE,quote=FALSE,sep='\t')
+write.table(intronOut,'work/intronOnly_regions.bed',col.names=FALSE,row.names=FALSE,quote=FALSE,sep='\t')
+write.table(intronGenesOut,'work/intronGenes_regions.bed',col.names=FALSE,row.names=FALSE,quote=FALSE,sep='\t')
+write.table(exonGenesOut,'work/exonGenes_regions.bed',col.names=FALSE,row.names=FALSE,quote=FALSE,sep='\t')
+
+
+
+
+bamDir<-'work/align'
+bamFiles<-list.files(bamDir,'\\.bam$',full.name=TRUE)
+
+for(ii in list.files('work','regions.bed')){
+	outFile<-sprintf('work/%s',sub('bed$','count',ii))
+	if(!file.exists(outFile)){
+		cmd<-sprintf("%s -t 12 -b work/%s %s -s >%s",bedCountBin,ii,paste(bamFiles,collapse=' '),outFile)
+		message(cmd)
+		#system(cmd)
+	}else{
+		message(outFile,' already exists')
 	}
-
-
 }
 
