@@ -50,7 +50,7 @@ for(ii in list.files('work','regions.bed')){
 	if(!file.exists(outFile)){
 		cmd<-sprintf("%s -t 12 -b work/%s %s -s >%s",bedCountBin,ii,paste(bamFiles,collapse=' '),outFile)
 		message(cmd)
-		#system(cmd)
+		system(cmd)
 	}else{
 		message(outFile,' already exists')
 	}
