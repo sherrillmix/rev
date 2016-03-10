@@ -44,6 +44,7 @@ write.table(exonGenesOut,'work/exonGenes_regions.bed',col.names=FALSE,row.names=
 
 bamDir<-'work/align'
 bamFiles<-list.files(bamDir,'\\.bam$',full.name=TRUE)
+names(bamFiles)<-sub('\\.bam','',basename(bamFiles))
 
 for(ii in list.files('work','regions.bed')){
 	outFile<-sprintf('work/%s',sub('bed$','count',ii))
@@ -55,4 +56,10 @@ for(ii in list.files('work','regions.bed')){
 		message(outFile,' already exists')
 	}
 }
+
+readCounts<-lapply(list.files('work','regions.count'), function(x)read.table(file.path('work',x)))
+names(readCounts)<-sub('(Only)?_regions.count','',list.files('work','regions.count'))
+
+intronExon<-mapply(function(exon,gene){names(exon)<-c('reg_reg','reg_cut',sprintf('reg_%s',names(bamFiles)));names(gene)<-c('gene_reg','gene_cut',sprintf('gene_%s',names(bamFiles)));return(cbind(exon,gene))},readCounts[c('exon','intron')],readCounts[c('exonGenes','intronGenes')],SIMPLIFY=FALSE)
+names(intronExon)<-c('exon','intron')
 
