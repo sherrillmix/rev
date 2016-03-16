@@ -41,19 +41,19 @@ plotRegion<-function(reg,files,cols=rainbow(length(files)),normalize=TRUE,counts
 	if(normalize)cover[,countCols]<-apply(cover[,countCols],2,function(x)if(any(x>0)) x/sum(x) else x)
 	if(is.null(coverMax))coverMax<-max(cover[,countCols])
 	nExon<-nrow(exons)
-	nGene<-length(unique(thisExons$TXNAME))
+	nGene<-length(unique(exons$TXNAME))
 	exonSpace<-.15*coverMax
 	if(nGene>0){
 		exonWidth<-exonSpace/nGene*.9
 		if(logY){
 			y<-10^seq(-1.9,-.1,length.out=nGene)
-			names(y)<-unique(thisExons$TXNAME)
+			names(y)<-unique(exons$TXNAME)
 			exons$y<-y[exons$TXNAME]
 			exons$top<-exons$y*10^(.5/nGene)
 			exons$bottom<-exons$y*10^(-.5/nGene)
 		} else {
 			y<- -exonSpace/nGene*((1:nGene)-.5)
-			names(y)<-unique(thisExons$TXNAME)
+			names(y)<-unique(exons$TXNAME)
 			exons$y<-y[exons$TXNAME]
 			exons$top<- exons$y+exonWidth/2
 			exons$bottom<- exons$y-exonWidth/2
