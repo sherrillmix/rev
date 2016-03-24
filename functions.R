@@ -1,7 +1,7 @@
 
 reg2range<-function(reg){
   chr<-strsplit(reg,':')[[1]]
-  coords<-as.numeric(strsplit(chr[2],'-')[[1]])
+  coords<-as.numeric(strsplit(sub('[-+*]$','',chr[2]),'-')[[1]])
   chr<-chr[[1]]
   GRanges(seqnames=chr,ranges=IRanges(coords[1],end=coords[2]))
 }
@@ -25,7 +25,8 @@ transcriptsByOverlapsByRegion<-function (x, ranges, maxgap = 0L, minoverlap = 1L
 plotRegion<-function(reg,files,cols=rainbow(length(files)),normalize=TRUE,counts=NULL,justCounts=FALSE,bam2depthBinary='./bam2depth',logY=FALSE,coverMax=NULL,ylab=ifelse(justCounts,'Proportion of reads segments observed','Proportion of positions observed'),legendPos='top',...){
   thisGenes<-transcriptsByOverlaps(TxDb.Hsapiens.UCSC.hg38.knownGene,reg2range(reg),columns=c('tx_id','tx_name','gene_id'))
   thisGenes$symbol<-thisGenes$tx_name
-  thisGenes$symbol[sapply(thisGenes$gene_id,length)>0]<-sapply(unlist(thisGenes$gene_id),function(x)select(org.Hs.eg.db,keys=x,columns='SYMBOL',keytype='ENTREZID')$SYMBOL)
+  thisGenes$symbol[sapply(thisGenes$gene_id,length)>0]<-sapply(unlist(thisGenes$gene_id),function(x)tryCatch(select(org.Hs.eg.db,keys=x,columns='SYMBOL',keytype='ENTREZID')$SYMBOL,error=function(e)return(NA)))
+  thisGenes[is.na(thisGenes$symbol),'symbol']<-thisGenes[is.na(thisGenes$symbol),'tx_name']
   if(length(thisGenes)==0){
     exons<-data.frame()[0,]
   }else{
