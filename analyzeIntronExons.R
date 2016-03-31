@@ -1,13 +1,13 @@
 readCounts<-lapply(list.files('work','regions.count'), function(x)read.table(file.path('work',x)))
 names(readCounts)<-sub('(Only)?_regions.count','',list.files('work','regions.count'))
 
-intronExon<-mapply(function(exon,gene){names(exon)<-c('reg_reg','reg_cut',sprintf('reg_%s',names(bamFiles)));names(gene)<-c('gene_reg','gene_cut',sprintf('gene_%s',names(bamFiles)));return(cbind(exon,gene))},readCounts[c('exon','intron','alt')],readCounts[c('exonGenes','intronGenes','altGenes')],SIMPLIFY=FALSE)
+intronExon<-mapply(function(exon,gene){names(exon)<-c('region_reg','region_cut',sprintf('region_%s',names(bamFiles)));names(gene)<-c('gene_reg','gene_cut',sprintf('gene_%s',names(bamFiles)));return(cbind(exon,gene))},readCounts[c('exon','intron','alt')],readCounts[c('exonGenes','intronGenes','altGenes')],SIMPLIFY=FALSE)
 names(intronExon)<-c('exon','intron','alt')
 
 #could automate this
-colNames<-list("regionRev"=c('reg_rev_1','reg_rev_2'),
+colNames<-list("regionRev"=c('region_rev_1','region_rev_2'),
   "geneRev"=c('gene_rev_1','gene_rev_2'),
-  "regionControl"=c('reg_control_1','reg_control_2'),
+  "regionControl"=c('region_control_1','region_control_2'),
   "geneControl"=c('gene_control_1','gene_control_2')
 )
 
@@ -103,10 +103,12 @@ mostInterestingRegions<-mapply(function(readCount,bound1,bound2,enoughRead){
 },intronExon,conservBound1,conservBound2,enoughReads,SIMPLIFY=FALSE)
 
 pdf('out/mostDifferent.pdf')
-  apply(do.call(rbind,mostInterestingRegions)[,c('gene_reg','reg_reg')],1,function(x){
+  apply(do.call(rbind,mostInterestingRegions)[,c('gene_reg','region_reg')],1,function(x){
     plotRegion(x[1],bamFiles,bam2depthBinary='~/installs/bedCount/bam2depth',normalize=FALSE,ylab='Read coverage')
     abline(v=parseRegion(x[2])[,c('start','end')],lty=2)
   })
 dev.off()
 
-
+#regBed<-
+#geneBed<-
+#out<-mapply(intronExon,c)
