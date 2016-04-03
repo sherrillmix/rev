@@ -26,6 +26,22 @@ altRegions<-cacheOperation('work/altRegions.Rdat',mclapply,overlappingAltGenes,r
 if(any(sapply(altRegions,length)>1))stop(simpleError('Multiple overlap alt region found'))
 altRegions<-do.call(c,unname(altRegions))
 
+exonGeneNames<-mclapply(overlappingExonGenes,function(x)paste(x$tx_name,collapse=','),mc.cores=5)
+intronGeneNames<-mclapply(overlappingIntronGenes,function(x)paste(x$tx_name,collapse=','),mc.cores=5)
+altGeneNames<-mclapply(overlappingAltGenes,function(x)paste(x$tx_name,collapse=','),mc.cores=5)
+
+parallelAve<-function (x, ..., FUN = mean,mc.cores=4) {
+	if (missing(...)) 
+		x[] <- FUN(x)
+	else {
+		g <- interaction(...)
+		split(x, g) <- mclapply(split(x, g), FUN,mc.cores=mc.cores)
+	}
+	x
+}
+exonRegNames<-unlist(cacheOperation('work/exonNames.Rdat',parallelAve,exonGeneNames,exonGeneNames,FUN=function(x)paste(x,1:length(x),sep='_'),EXCLUDE='exonGeneNames'))
+intronRegNames<-unlist(cacheOperation('work/intronNames.Rdat',parallelAve,intronGeneNames,intronGeneNames,FUN=function(x)paste(x,1:length(x),sep='_'),EXCLUDE='intronGeneNames'))
+altRegNames<-unlist(cacheOperation('work/altNames.Rdat',parallelAve,altGeneNames,altGeneNames,FUN=function(x)paste(x,1:length(x),sep='_'),EXCLUDE='altGeneNames'))
 
 revStrand<-function(strand){
 	if(any(!strand %in% c('+','-','*')))stop(simpleError('Strand found that is not + - or *'))
@@ -33,13 +49,13 @@ revStrand<-function(strand){
 }
 
 #reversing strand to deal with negative strand specific amplification
-exonOut<-data.frame('chr'=seqnames(onlyExon),'start'=start(onlyExon)-1,'end'=end(onlyExon),'name'=sprintf('exon%09d',1:length(onlyExon)),'strand'=revStrand(strand(onlyExon)),stringsAsFactors=FALSE)
-intronOut<-data.frame('chr'=seqnames(onlyIntron),'start'=start(onlyIntron)-1,'end'=end(onlyIntron),'name'=sprintf('intron%09d',1:length(onlyIntron)),'strand'=revStrand(strand(onlyIntron)),stringsAsFactors=FALSE)
-altOut<-data.frame('chr'=seqnames(onlyAlt),'start'=start(onlyAlt)-1,'end'=end(onlyAlt),'name'=sprintf('intron%09d',1:length(onlyAlt)),'strand'=revStrand(strand(onlyAlt)),stringsAsFactors=FALSE)
+exonOut<-data.frame('chr'=seqnames(onlyExon),'start'=start(onlyExon)-1,'end'=end(onlyExon),'name'=exonRegNames,'strand'=revStrand(strand(onlyExon)),stringsAsFactors=FALSE)
+intronOut<-data.frame('chr'=seqnames(onlyIntron),'start'=start(onlyIntron)-1,'end'=end(onlyIntron),'name'=intronRegNames,'strand'=revStrand(strand(onlyIntron)),stringsAsFactors=FALSE)
+altOut<-data.frame('chr'=seqnames(onlyAlt),'start'=start(onlyAlt)-1,'end'=end(onlyAlt),'name'=altRegNames,'strand'=revStrand(strand(onlyAlt)),stringsAsFactors=FALSE)
 
-exonGenesOut<-data.frame('chr'=seqnames(exonRegions),'start'=start(exonRegions)-1,'end'=end(exonRegions),'name'=sprintf('exon%09d',1:length(exonRegions)),'strand'=revStrand(strand(exonRegions)),stringsAsFactors=FALSE)
-intronGenesOut<-data.frame('chr'=seqnames(intronRegions),'start'=start(intronRegions)-1,'end'=end(intronRegions),'name'=sprintf('intron%09d',1:length(intronRegions)),'strand'=revStrand(strand(intronRegions)),stringsAsFactors=FALSE)
-altGenesOut<-data.frame('chr'=seqnames(altRegions),'start'=start(altRegions)-1,'end'=end(altRegions),'name'=sprintf('alt%09d',1:length(altRegions)),'strand'=revStrand(strand(altRegions)),stringsAsFactors=FALSE)
+exonGenesOut<-data.frame('chr'=seqnames(exonRegions),'start'=start(exonRegions)-1,'end'=end(exonRegions),'name'=exonRegNames,'strand'=revStrand(strand(exonRegions)),stringsAsFactors=FALSE)
+intronGenesOut<-data.frame('chr'=seqnames(intronRegions),'start'=start(intronRegions)-1,'end'=end(intronRegions),'name'=intronRegNames,'strand'=revStrand(strand(intronRegions)),stringsAsFactors=FALSE)
+altGenesOut<-data.frame('chr'=seqnames(altRegions),'start'=start(altRegions)-1,'end'=end(altRegions),'name'=altRegNames,'strand'=revStrand(strand(altRegions)),stringsAsFactors=FALSE)
 
 options(scipen=20)
 write.table(exonOut,'work/exonOnly_regions.bed',col.names=FALSE,row.names=FALSE,quote=FALSE,sep='\t')
