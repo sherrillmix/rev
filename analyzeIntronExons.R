@@ -1,4 +1,5 @@
 source("~/scripts/R/dna.R")
+library(parallel)
 bamDir<-'work/align'
 bamFiles<-list.files(bamDir,'\\.bam$',full.name=TRUE)
 names(bamFiles)<-sub('\\.bam','',basename(bamFiles))
