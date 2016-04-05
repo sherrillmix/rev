@@ -1,4 +1,5 @@
 source("~/scripts/R/dna.R")
+source('functions.R')
 library(parallel)
 bamDir<-'work/align'
 bamFiles<-list.files(bamDir,'\\.bam$',full.name=TRUE)
