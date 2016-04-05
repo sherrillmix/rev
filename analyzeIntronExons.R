@@ -1,3 +1,8 @@
+source("~/scripts/R/dna.R")
+bamDir<-'work/align'
+bamFiles<-list.files(bamDir,'\\.bam$',full.name=TRUE)
+names(bamFiles)<-sub('\\.bam','',basename(bamFiles))
+
 readCounts<-lapply(list.files('work','regions.count'), function(x)read.table(file.path('work',x)))
 names(readCounts)<-sub('(Only)?_regions.count','',list.files('work','regions.count'))
 
