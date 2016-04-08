@@ -26,9 +26,9 @@ altRegions<-cacheOperation('work/altRegions.Rdat',mclapply,overlappingAltGenes,r
 if(any(sapply(altRegions,length)>1))stop(simpleError('Multiple overlap alt region found'))
 altRegions<-do.call(c,unname(altRegions))
 
-exonGeneNames<-mclapply(overlappingExonGenes,function(x)paste(x$tx_name,collapse=','),mc.cores=5)
-intronGeneNames<-mclapply(overlappingIntronGenes,function(x)paste(x$tx_name,collapse=','),mc.cores=5)
-altGeneNames<-mclapply(overlappingAltGenes,function(x)paste(x$tx_name,collapse=','),mc.cores=5)
+exonGeneNames<-unlist(mclapply(overlappingExonGenes,function(x)paste(x$tx_name,collapse=','),mc.cores=5))
+intronGeneNames<-unlist(mclapply(overlappingIntronGenes,function(x)paste(x$tx_name,collapse=','),mc.cores=5))
+altGeneNames<-unlist(mclapply(overlappingAltGenes,function(x)paste(x$tx_name,collapse=','),mc.cores=5))
 
 parallelAve<-function (x, ..., FUN = mean,mc.cores=4) {
 	if (missing(...)) 
