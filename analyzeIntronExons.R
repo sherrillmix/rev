@@ -1,14 +1,15 @@
 source("~/scripts/R/dna.R")
 source('functions.R')
 library(parallel)
+
 bamDir<-'work/align'
 bamFiles<-list.files(bamDir,'\\.bam$',full.name=TRUE)
 names(bamFiles)<-sub('\\.bam','',basename(bamFiles))
 
-readCounts<-lapply(list.files('work','regions.count'), function(x)read.table(file.path('work',x)))
+readCounts<-lapply(list.files('work','regions.count'), function(x)read.table(file.path('work',x)),stringsAsFactors=FALSE)
 names(readCounts)<-sub('(Only)?_regions.count','',list.files('work','regions.count'))
 
-beds<-lapply(list.files('work','regions.bed'), function(x)read.table(file.path('work',x)))
+beds<-lapply(list.files('work','regions.bed'), function(x)read.table(file.path('work',x)),stringsAsFactors=FALSE)
 names(beds)<-sub('(Only)?_regions.bed','',list.files('work','bed'))
 
 intronExon<-mapply(function(exon,gene,exonBed,geneBed){
@@ -18,7 +19,7 @@ intronExon<-mapply(function(exon,gene,exonBed,geneBed){
 	if(any(pasteRegion(exonBed$chr,exonBed$start+1,exonBed$end)!=exon$region_reg))stop(simpleError('Mismatch in bed and counts in region'))
 	if(any(pasteRegion(geneBed$chr,geneBed$start+1,geneBed$end)!=gene$region_reg))stop(simpleError('Mismatch in bed and counts in genes'))
 	if(any(geneBed$strand!=exonBed$strand))stop(simpleError('Strand mismatch'))
-	return(cbind(exon,gene,'strand'=exonBed$strand))
+	return(cbind(exon,gene,'strand'=exonBed$strand,'name'=exonBed$name))
 },readCounts[c('exon','intron','alt')],readCounts[c('exonGenes','intronGenes','altGenes')],beds[c('exon','intron','alt')],beds[c('exonGenes','intronGenes','altGenes')],SIMPLIFY=FALSE)
 names(intronExon)<-c('exon','intron','alt')
 
@@ -32,19 +33,22 @@ colNames<-list("regionRev"=c('region_rev_1','region_rev_2'),
 
 diffs<-cacheOperation('work/diffs.Rdat',mclapply,lapply(intronExon,function(x)x[,unlist(colNames)]),function(xx,colNames){
   apply(xx[,unlist(colNames)],1,function(y){
-    quantile(bayesBinomDiff(y[colNames[["regionControl"]]],y[colNames[["regionRev"]]],y[colNames[["geneControl"]]],y[colNames[["geneRev"]]],reps=10000),c(.005,.025,.5,.975,.995))
+	 diffs<-bayesBinomDiff(y[colNames[["regionControl"]]],y[colNames[["regionRev"]]],y[colNames[["geneControl"]]],y[colNames[["geneRev"]]],reps=10000)
+    return(c(quantile(diffs,c(.005,.025,.5,.975,.995)),'p'=mean(diffs>0)))
   })
-},colNames,mc.cores=4)
+},colNames,mc.cores=8)
 diffs1<-cacheOperation('work/diffs1.Rdat',mclapply,lapply(intronExon,function(x)x[,unlist(colNames)]),function(xx,colNames){
   apply(xx[,unlist(colNames)],1,function(y){
-    quantile(bayesBinomDiff(y[colNames[["regionControl"]][1]],y[colNames[["regionRev"]][1]],y[colNames[["geneControl"]][1]],y[colNames[["geneRev"]][1]],reps=10000),c(.005,.025,.5,.975,.995))
+	 diffs<-bayesBinomDiff(y[colNames[["regionControl"]][1]],y[colNames[["regionRev"]][1]],y[colNames[["geneControl"]][1]],y[colNames[["geneRev"]][1]],reps=10000)
+    return(c(quantile(diffs,c(.005,.025,.5,.975,.995)),'p'=mean(diffs>0)))
   })
-},colNames,mc.cores=4)
+},colNames,mc.cores=8)
 diffs2<-cacheOperation('work/diffs2.Rdat',mclapply,lapply(intronExon,function(x)x[,unlist(colNames)]),function(xx,colNames){
   apply(xx[,unlist(colNames)],1,function(y){
-    quantile(bayesBinomDiff(y[colNames[["regionControl"]][2]],y[colNames[["regionRev"]][2]],y[colNames[["geneControl"]][2]],y[colNames[["geneRev"]][2]],reps=10000),c(.005,.025,.5,.975,.995))
+    diffs<-bayesBinomDiff(y[colNames[["regionControl"]][2]],y[colNames[["regionRev"]][2]],y[colNames[["geneControl"]][2]],y[colNames[["geneRev"]][2]],reps=10000)
+    return(c(quantile(diffs,c(.005,.025,.5,.975,.995)),'p'=mean(diffs>0)))
   })
-},colNames,mc.cores=4)
+},colNames,mc.cores=8)
 
 enoughReads<-lapply(intronExon,function(x)apply(x[,unlist(colNames[c('regionRev','regionControl')])],1,sum)>100)
 
@@ -115,6 +119,15 @@ pdf('out/intronExon.pdf')
   mtext('Exon frequency (x1000)',2,1.8)#,xpd=NA,at=mean(par('usr')[3:4])*.9,adj=.5)
 dev.off()
 
+#output a csv
+out<-mapply(function(coordCounts,diff,diff1,diff2,bound1,bound2,enoughRead){
+	cbind(coordCounts,t(diff),'p1'=diff1['p',],'p2'=diff2['p',],'rep1bound'=bound1,'rep2bound'=bound2)[enoughRead,]
+},intronExon,diffs,diffs1,diffs2,conservBound1,conservBound2,enoughReads,SIMPLIFY=FALSE)
+out<-lapply(names(out),function(x){tmp<-out[[x]];tmp$type<-x;tmp})
+names(out)<-names(intronExon)
+out<-rbind(out[['exon']],out[['intron']])
+write.csv(out,'out/summary.csv')
+
 mostInterestingRegions<-mapply(function(readCount,bound1,bound2,enoughRead){
 	readCount$bound1<-bound1
 	readCount$bound2<-bound1
@@ -127,7 +140,3 @@ pdf('out/mostDifferent.pdf')
     abline(v=parseRegion(x[2])[,c('start','end')],lty=2)
   })
 dev.off()
-
-#regBed<-
-#geneBed<-
-#out<-mapply(intronExon,c)
