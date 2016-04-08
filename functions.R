@@ -1,3 +1,5 @@
+library(GenomicFeatures)
+library("TxDb.Hsapiens.UCSC.hg38.knownGene")
 
 reg2range<-function(reg){
   chr<-strsplit(reg,':')[[1]]
